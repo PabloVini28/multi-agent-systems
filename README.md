@@ -1,1 +1,1 @@
-# MultiAgentSystems 🤖👥
+# MultiAgent Systems 🤖👥
