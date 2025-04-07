@@ -1,2 +1,1 @@
-# MultiAgentSystems
-MY STUDYS WITH MAS
+# MultiAgentSystems 🤖👥
