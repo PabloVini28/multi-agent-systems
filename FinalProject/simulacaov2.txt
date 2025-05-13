@@ -1,40 +1,34 @@
 globals [
-  dias              ; contador de dias (1 tick = 1 hora, 24 ticks = 1 dia)
-  chovendo? intensidade-chuva
+  dias
+  chovendo?
 ]
 
 patches-own [
   is-building?
   is-drain?
-  water-level
   lixo
   entupido?
 ]
 
 turtles-own [
-  tipo  ; "lixo", "desentupidor", "caminhao"
+  tipo
 ]
 
 to setup
   clear-all
   set dias 0
+  set chovendo? false
 
   ask patches [
     set is-building? false
     set is-drain? false
     set entupido? false
-    set water-level 0
     set lixo 0
-    set chovendo? false
-    set intensidade-chuva 0
-
   ]
 
   draw-region
   create-buildings
   place-drains
-  create-desentupidores
-  create-caminhao
 
   reset-ticks
 end
@@ -48,16 +42,33 @@ to draw-region
 end
 
 to create-buildings
-  ask patches with [(pxcor > -9 and pxcor < 0 and pycor > 6 and pycor < 14)] [set pcolor red + 1 set is-building? true]
-  ask patches with [(pxcor > 0 and pxcor < 9 and pycor > 6 and pycor < 14)] [set pcolor green + 3 set is-building? true]
-  ask patches with [(pxcor > -9 and pxcor < -3 and pycor > -12 and pycor < -6)] [set pcolor violet + 1 set is-building? true]
-  ask patches with [(pxcor > -3 and pxcor < 3 and pycor > -12 and pycor < -6)] [set pcolor brown + 2 set is-building? true]
-  ask patches with [(pxcor > 3 and pxcor < 9 and pycor > -12 and pycor < -6)] [set pcolor blue + 10 set is-building? true]
-  ask patches with [(pxcor > -9 and pxcor < 9 and pycor > -4 and pycor < 4)] [set pcolor orange + 2 set is-building? true]
+  ask patches with [(pxcor > -9 and pxcor < 0 and pycor > 6 and pycor < 14)] [
+    set pcolor red + 1
+    set is-building? true
+  ]
+  ask patches with [(pxcor > 0 and pxcor < 9 and pycor > 6 and pycor < 14)] [
+    set pcolor green + 3
+    set is-building? true
+  ]
+  ask patches with [(pxcor > -9 and pxcor < -3 and pycor > -12 and pycor < -6)] [
+    set pcolor violet + 1
+    set is-building? true
+  ]
+  ask patches with [(pxcor > -3 and pxcor < 3 and pycor > -12 and pycor < -6)] [
+    set pcolor brown + 2
+    set is-building? true
+  ]
+  ask patches with [(pxcor > 3 and pxcor < 9 and pycor > -12 and pycor < -6)] [
+    set pcolor blue + 10
+    set is-building? true
+  ]
+  ask patches with [(pxcor > -9 and pxcor < 9 and pycor > -4 and pycor < 4)] [
+    set pcolor orange + 2
+    set is-building? true
+  ]
 end
 
 to place-drains
-  ; Coloca bueiros em pontos específicos e garante que sejam visíveis
   ask patches with [
     (pxcor = -10 and pycor = 6) or
     (pxcor = 10 and pycor = 6) or
@@ -68,80 +79,84 @@ to place-drains
   ] [
     set is-drain? true
     set entupido? false
-    set water-level 0
-    ; Definindo a cor do bueiro para torná-lo visível
-    set pcolor blue + 2
-  ]
-end
-
-to create-desentupidores
-  create-turtles 2 [
-    set tipo "desentupidor"
-    set color yellow
-    setxy random-xcor random-ycor
-  ]
-end
-
-to create-caminhao
-  create-turtles 1 [
-    set tipo "caminhao"
-    set color red
-    setxy 11 -15
+    set pcolor blue
   ]
 end
 
 to go
-  if ticks mod 24 = 0 [ set dias dias + 1 ]
-  fazer-chover
-  espalhar-agua
+  if chovendo? [
+    fazer-chover
+    chuva
+  ]
+
   acumular-lixo
-  mover-caminhao
-  mover-desentupidores
   desenhar-niveis
-  
   tick
 end
 
-to fazer-chover
-  ; chance pequena de começar a chover
-  if not chovendo? and random-float 1.0 < 0.05 [
-    set chovendo? true
-    set intensidade-chuva random 0 + 2
+to chuva
+  ask patches with [is-drain?] [
+    set pcolor blue + 3
   ]
 
-  ; se estiver chovendo, chove forte por um tempo
+  if any? patches with [is-drain? and lixo >= 10] [
+    espalhar-agua
+    desenhar-niveis
+  ]
+end
+
+to ativar-chuva
+  set chovendo? true
+end
+
+to parar-chuva
+  set chovendo? false
+end
+
+to fazer-chover
   if chovendo? [
-    ask patches with [pcolor = gray - 1 and not is-building?] [
-      set water-level water-level + intensidade-chuva
+    ; só pinta ruas se houver bueiro entupido
+    if any? patches with [is-drain? and entupido?] [
+      pintar-ruas-azul
     ]
-    
-    ; chuva dura de 2 a 4 horas
-    if random-float 2.0 < 0.4 [
-      set chovendo? false
+  ]
+end
+
+to pintar-ruas-azul
+  ask patches with [is-drain? and entupido?] [
+    let vizinhos patches in-radius 2
+    ask vizinhos with [pcolor = gray - 1 and not is-building?] [
+      set pcolor blue + 3
     ]
+  ]
+end
+
+; botão pode chamar diretamente este se quiser ação independente da chuva
+to pintar-ruas-se-entupido
+  if any? patches with [is-drain? and entupido?] [
+    pintar-ruas-azul
   ]
 end
 
 to espalhar-agua
-  ask patches with [water-level > 2] [
-    let vizinhos patches in-radius 1
+  if not chovendo? [ stop ]
 
-    if any? vizinhos with [is-drain? and not entupido?] [
-      set water-level water-level - 2
-    ]
-    if not any? vizinhos with [is-drain? and not entupido?] [
-      ask one-of vizinhos with [not is-building?] [
-        set water-level water-level + 1
+  if any? patches with [is-drain? and entupido?] [
+    ask patches with [pcolor = gray - 1 and not is-building?] [
+      let vizinhos patches in-radius 1
+      if any? vizinhos with [pcolor = gray - 1 and not is-building?] [
+        ask one-of vizinhos with [pcolor = gray - 1 and not is-building?] [
+          set pcolor blue + 3
+        ]
       ]
-      set water-level water-level - 1
     ]
   ]
 end
 
-
 to acumular-lixo
-  ask patches with [pcolor = gray - 1] [
-    if random-float 1.0 < 0.05 [
+  ask patches with [pcolor = gray - 1 or is-drain?] [
+    let chance 0.05
+    if random-float 1.0 < chance [
       set lixo lixo + 1
     ]
     if is-drain? and lixo > 10 [
@@ -150,60 +165,18 @@ to acumular-lixo
   ]
 end
 
-to mover-caminhao
-  ask turtles with [tipo = "caminhao"] [
-    if dias mod 2 = 0 and ticks mod 24 = 0 [
-      ; Tentar mover para um patch vizinho válido (rua ou avenida)
-      let alvo one-of patches in-radius 1 with [not is-building? and not is-drain?]
-      
-      ; Se encontrar um patch válido, move
-      if alvo != nobody [
-        face alvo
-        fd 1
-        ask patch-here [
-          set lixo max (list 0 (lixo - 5))
-        ]
-      ]
-    ]
-  ]
-end
-
-to mover-desentupidores
-  ask turtles with [tipo = "desentupidor"] [
-    let alvo one-of patches with [is-drain? and entupido?]
-    if alvo != nobody [
-      face alvo
-      fd 1
-      if patch-here = alvo [
-        set entupido? false
-        set lixo max (list 0 (lixo - 5))
-      ]
-    ]
-  ]
-end
-
 to desenhar-niveis
   ask patches [
-    ifelse water-level > 0 [
-      set pcolor scale-color blue water-level 0 10
+    if is-drain? [
+      ifelse entupido? [
+        set pcolor red
+      ] [
+        set pcolor blue + 2
+      ]
+      set plabel (word "Lixo: " lixo)
     ]
-    [
-      ifelse is-drain? [
-        ; Aqui, os bueiros vão ter uma cor destacada e o status de entupido será mostrado
-        ifelse entupido? [
-          set pcolor red  ; Coloca a cor vermelha se estiver entupido
-        ]
-        [
-          set pcolor blue + 3  ; Coloca a cor azul para bueiros não entupidos
-        ]
-        set plabel (word "Lixo: " lixo)  ; Exibe a quantidade de lixo no bueiro
-      ]
-      [
-        ifelse not is-building? and pcolor != gray - 1 [
-          set pcolor green + 2
-        ]
-        []
-      ]
+    if not is-drain? [
+      set plabel ""
     ]
   ]
 end
