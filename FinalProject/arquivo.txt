@@ -1,0 +1,202 @@
+globals [
+  dias
+  chovendo?
+  total-entupidos
+  lixo-removido
+  cor-rua
+  cor-alagada
+  proxima-chuva
+  ruas-alagadas? 
+]
+
+patches-own [
+  is-building?
+  is-drain?
+  lixo
+  entupido?
+  tempo-entupido
+]
+
+turtles-own [
+  destino
+  carga-lixo
+]
+
+to setup
+  clear-all
+  reset-ticks
+
+  set dias 0
+  set chovendo? false
+  set total-entupidos 0
+  set lixo-removido 0
+
+  set cor-rua gray - 1
+  set cor-alagada 105
+  set proxima-chuva ticks + frequencia-chuva
+  set ruas-alagadas? false
+
+  setup-patches
+  draw-region
+  create-buildings
+  place-drains
+end
+
+to setup-patches
+  ask patches [
+    set is-building? false
+    set is-drain? false
+    set entupido? false
+    set lixo 0
+    set tempo-entupido 0
+    set plabel ""
+  ]
+end
+
+to draw-region
+  ask patches with [
+    pycor = 5 or pycor = 6 or pycor = -5 or pycor = -6 or
+    pxcor = -10 or pxcor = -11 or pxcor = 10 or pxcor = 11
+  ] [
+    set pcolor cor-rua
+  ]
+
+  ask patches with [pcolor = black] [
+    set pcolor gray + 2
+  ]
+end
+
+to create-buildings
+  ask patches with [(pxcor > -9 and pxcor < 0 and pycor > 6 and pycor < 14)] [
+    set pcolor red + 1
+    set is-building? true
+  ]
+  ask patches with [(pxcor > 0 and pxcor < 9 and pycor > 6 and pycor < 14)] [
+    set pcolor gray + 3
+    set is-building? true
+  ]
+  ask patches with [(pxcor > -9 and pxcor < -3 and pycor > -12 and pycor < -6)] [
+    set pcolor violet + 1
+    set is-building? true
+  ]
+  ask patches with [(pxcor > -3 and pxcor < 3 and pycor > -12 and pycor < -6)] [
+    set pcolor brown + 2
+    set is-building? true
+  ]
+  ask patches with [(pxcor > 3 and pxcor < 9 and pycor > -12 and pycor < -6)] [
+    set pcolor blue + 10
+    set is-building? true
+  ]
+  ask patches with [(pxcor > -9 and pxcor < 9 and pycor > -4 and pycor < 4)] [
+    set pcolor orange + 2
+    set is-building? true
+  ]
+end
+
+to place-drains
+  ask patches with [
+    (pxcor = -10 and pycor = 6) or
+    (pxcor = 10 and pycor = 6) or
+    (pxcor = -10 and pycor = -6) or
+    (pxcor = 10 and pycor = -6) or
+    (pxcor = 0 and pycor = 5) or
+    (pxcor = 0 and pycor = -5)
+  ] [
+    set is-drain? true
+    set pcolor blue
+    set plabel precision lixo 1
+  ]
+end
+
+to go
+  set dias dias + 1
+
+  ifelse ticks = proxima-chuva [
+    set chovendo? true
+
+    if any? patches with [is-drain? and lixo > 5] [
+      ask patches with [pcolor = cor-rua] [
+        set pcolor cor-alagada
+      ]
+      set ruas-alagadas? true
+    ]
+
+    set proxima-chuva ticks + frequencia-chuva
+  ] [
+    set chovendo? false
+  ]
+
+  if ruas-alagadas? [
+    if not any? patches with [is-drain? and lixo >= 5] [
+      ask patches with [pcolor = cor-alagada and not is-drain?] [
+        set pcolor cor-rua
+      ]
+      set ruas-alagadas? false
+    ]
+  ]
+
+  accumulate-trash
+
+  if (ticks mod frequencia-coleta = 0) [
+    deploy-garbage-collectors
+  ]
+
+  move-collectors
+
+  tick
+end
+
+to accumulate-trash
+  ask patches with [is-drain? and not entupido?] [
+    ifelse chovendo? [
+      set lixo lixo + random-float 0.5
+    ] [
+      set lixo lixo + random-float 0.2
+    ]
+
+    if lixo > 5 [
+      set entupido? true
+      set total-entupidos total-entupidos + 1
+    ]
+
+    set plabel precision lixo 1
+  ]
+end
+
+to deploy-garbage-collectors
+  create-turtles numero-garis [
+    set color yellow
+    set shape "person"
+    set carga-lixo 0
+    set destino one-of patches with [is-drain? and (entupido? or lixo > 2)]
+  ]
+end
+
+to move-collectors
+  ask turtles [
+    ifelse destino != nobody [
+      face destino
+      fd 0.5
+
+      if distance destino < 0.5 [
+        ask destino [
+          set lixo max (list 0 (lixo - 3))
+          if lixo < 2 [set entupido? false]
+          set plabel precision lixo 1
+        ]
+        set lixo-removido lixo-removido + 1
+        die
+      ]
+    ] [
+      rt random 30
+      fd 0.2
+    ]
+  ]
+end
+
+to add-trash
+  ask one-of patches with [is-drain?] [
+    set lixo lixo + 5
+    set plabel precision lixo 1
+  ]
+end
